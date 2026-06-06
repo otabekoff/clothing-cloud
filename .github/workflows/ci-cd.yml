@@ -144,14 +144,20 @@ jobs:
             # Stop the old stack first so published ports (80/8080) are released
             # cleanly. The pgdata volume is named, so DB data persists.
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml down --remove-orphans || true
-            # Belt-and-braces: an earlier deploy under a DIFFERENT compose
-            # project name (e.g. before this stack was renamed) can leave a
-            # container still publishing :80 or :8080, which `down` above won't
-            # touch. Force-remove anything still bound to those ports so the new
-            # lb/frontend can bind.
-            for port in 80 8080; do
-              stuck=$(docker ps -q --filter "publish=$port")
-              [ -n "$stuck" ] && docker rm -f $stuck || true
+            # Free ports 80/8080 no matter what holds them. `compose down` only
+            # covers this project; a container from an old project name — or a
+            # host service (httpd/nginx) installed directly — can still hold the
+            # port. Diagnose, then remove the offending container(s) and stop any
+            # host web server so the new lb/frontend can bind.
+            echo "--- who holds :80 / :8080 ---"
+            sudo ss -ltnp '( sport = :80 or sport = :8080 )' 2>/dev/null || true
+            for c in $(docker ps -aq); do
+              if docker port "$c" 2>/dev/null | grep -qE ':80$|:8080$|0\.0\.0\.0:(80|8080)->'; then
+                echo "removing container $c (publishes 80/8080):"; docker rm -f "$c" || true
+              fi
+            done
+            for svc in httpd nginx apache2; do
+              sudo systemctl stop "$svc" 2>/dev/null && sudo systemctl disable "$svc" 2>/dev/null || true
             done
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
