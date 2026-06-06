@@ -14,8 +14,8 @@ from prometheus_client import Counter, make_asgi_app
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import get_settings
-from .database import Base, SessionLocal, engine, wait_for_db
-from .routers import crm, erp, health, wms
+from .database import init_schema, wait_for_db
+from .routers import auth, crm, dashboard, erp, health, users, wms
 from .seed import seed
 
 settings = get_settings()
@@ -26,12 +26,9 @@ REQUESTS = Counter("app_requests_total", "Total HTTP requests", ["method", "path
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     wait_for_db()
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed(db)
-    finally:
-        db.close()
+    # Create the schema and seed demo data exactly once across all replicas
+    # (advisory-locked inside init_schema to avoid a startup race).
+    init_schema(seed)
     yield
 
 
@@ -57,6 +54,9 @@ app.add_middleware(MetricsMiddleware)
 app.mount("/metrics", make_asgi_app())
 
 app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(dashboard.router)
 app.include_router(erp.router)
 app.include_router(crm.router)
 app.include_router(wms.router)

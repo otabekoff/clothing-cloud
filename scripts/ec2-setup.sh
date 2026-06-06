@@ -98,13 +98,15 @@ echo "8️⃣  Creating .env file..."
 if [ -f ~/nimbus/.env ]; then
   echo "⚠️  .env already exists, skipping"
 else
-  cat > ~/nimbus/.env <<'EOF'
+  cat > ~/nimbus/.env <<EOF
 # Database credentials (set these to strong passwords in production)
 POSTGRES_USER=erp
 POSTGRES_PASSWORD=change-me-to-a-strong-password
 POSTGRES_DB=erp
+# JWT signing secret — generated randomly here; the prod stack requires it.
+JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))" 2>/dev/null || openssl rand -base64 48)
 EOF
-  echo "✅ Created .env file"
+  echo "✅ Created .env file (with a random JWT_SECRET)"
   echo "   ⚠️  Edit ~/nimbus/.env and set POSTGRES_PASSWORD to a strong password"
 fi
 echo ""

@@ -1,0 +1,21 @@
+# GitGuardian configuration.
+#
+# The only "secrets" in this repository are throwaway demo credentials for the
+# seeded sample accounts (documented openly in the README). They grant access
+# to nothing real and are intentionally part of the demo. Declare them here so
+# the scanner doesn't flag them. There are NO production secrets in source —
+# the JWT signing secret is generated at runtime / supplied via the environment
+# (see backend/app/config.py and docker-compose.prod.yml).
+
+version: 2
+
+secret:
+  ignored-matches:
+    - name: demo account password (admin)
+      match: admin123
+    - name: demo account password (manager)
+      match: manager123
+    - name: demo account password (viewer)
+      match: viewer123
+  ignored-paths:
+    - ".env.example" # placeholder values only
