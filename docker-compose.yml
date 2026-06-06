@@ -1,0 +1,85 @@
+# ════════════════════════════════════════════════════════════════
+#  NIMBUS — Cloud network topology (VPC simulation)
+#
+#  This compose file models the cloud network design from the brief using two
+#  isolated Docker bridge networks that play the role of VPC subnets:
+#
+#    public_net  (≈ public subnet)   : frontend, lb        — reachable layer
+#    private_net (≈ private subnet)  : backend, db         — NOT internet-facing
+#
+#  Only `frontend` and `lb` straddle both networks (like a NAT/Internet Gateway
+#  boundary). The database lives ONLY on private_net, so it can never be reached
+#  from outside — the security posture argued for in criterion A.P1 / D.
+#
+#  Mapping to the brief:
+#    lb        -> Load Balancer + Internet Gateway
+#    backend   -> ERP/CRM/WMS application tier (auto-scalable replicas)
+#    db        -> private data tier
+#    frontend  -> public dynamic website (reverse-proxies /api to the LB)
+# ════════════════════════════════════════════════════════════════
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp
+      POSTGRES_DB: erp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - private_net          # data tier is private-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://erp:erp@db:5432/erp
+      # {{.Task.Slot}}-style identity isn't available in compose, so we derive a
+      # short id from the container hostname at runtime instead (see command).
+      ENVIRONMENT: production
+    command: >
+      sh -c 'export INSTANCE_ID=$(hostname | cut -c1-12);
+             exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2'
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - private_net          # app tier is private; only the LB can reach it
+    # No published ports: the backend is NEVER exposed to the host/internet.
+    deploy:
+      replicas: 2            # start with 2; scale with --scale backend=N
+
+  lb:
+    build: ./nginx
+    depends_on:
+      - backend
+    networks:
+      - private_net          # talks to backend replicas
+      - public_net           # reachable by the frontend
+    # Exposed on 8080 for local dev so the Vite proxy / load test can hit it.
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - lb
+    networks:
+      - public_net
+    ports:
+      - "8000:80"            # the public dynamic website
+
+networks:
+  public_net:
+    driver: bridge
+  private_net:
+    driver: bridge
+    internal: false          # set true to fully air-gap; left open for egress (NAT)
+
+volumes:
+  pgdata:

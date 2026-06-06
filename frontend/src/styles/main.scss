@@ -1,0 +1,190 @@
+@use "variables" as *;
+@use "mixins" as *;
+
+// Expose a few tokens as CSS custom properties so component inline styles
+// (e.g. fontFamily: var(--mono)) resolve at runtime.
+:root {
+  --mono: #{$font-mono};
+  --ink-dim: #{$ink-dim};
+  --signal: #{$signal};
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba($signal, 0.06), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 38px, rgba(255,255,255,0.012) 38px 39px),
+    $bg;
+  color: $ink;
+  font-family: $font-display;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 24px 64px;
+}
+
+// ── Top bar ──────────────────────────────────────────────────────
+.topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 1px solid $line;
+  padding-bottom: 18px;
+  margin-bottom: $gap;
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .mark {
+      width: 34px; height: 34px;
+      border: 1px solid $signal;
+      border-radius: $radius;
+      display: grid; place-items: center;
+      color: $signal;
+      font-family: $font-mono;
+      font-weight: 700;
+      box-shadow: inset 0 0 18px rgba($signal, 0.18);
+    }
+    h1 {
+      font-size: 19px; font-weight: 800; letter-spacing: 0.04em;
+      span { color: $ink-dim; font-weight: 600; }
+    }
+    p { @include label; margin-top: 3px; }
+  }
+
+  .meta { text-align: right;
+    .live { @include pill($signal); }
+    .node { @include label; margin-top: 8px; display: block;
+      b { color: $signal; font-weight: 500; }
+    }
+  }
+}
+
+// ── Metric strip ─────────────────────────────────────────────────
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $gap;
+  margin-bottom: $gap;
+
+  .metric {
+    @include panel;
+    padding: 16px 18px;
+    overflow: hidden;
+    .k { @include label; }
+    .v {
+      font-family: $font-mono; font-size: 30px; font-weight: 700;
+      margin-top: 6px; color: $signal;
+    }
+    .s { @include label; color: $ink-dim; margin-top: 2px; }
+    &::after {
+      content: ""; position: absolute; inset: auto 0 0 0; height: 2px;
+      background: linear-gradient(90deg, $signal, transparent);
+      opacity: 0.5;
+    }
+  }
+}
+
+// ── Layout grid ──────────────────────────────────────────────────
+.grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: $gap;
+  @media (max-width: 860px) { grid-template-columns: 1fr; }
+}
+
+.card {
+  @include panel;
+  padding: 18px;
+  margin-bottom: $gap;
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+    h2 { font-size: 14px; letter-spacing: 0.05em; }
+    .tag { @include label; }
+    .tag.crm  { color: $cyan; }
+    .tag.wms  { color: $amber; }
+    .tag.erp  { color: $signal; }
+  }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-family: $font-mono; font-size: 12.5px;
+    th { @include label; text-align: left; padding: 6px 8px;
+      border-bottom: 1px solid $line; }
+    td { padding: 8px; border-bottom: 1px solid rgba($line, 0.5);
+      color: $ink; }
+    tr:hover td { background: $panel-alt; }
+    .num { text-align: right; color: $signal; }
+    .muted { color: $ink-dim; }
+  }
+}
+
+.status {
+  font-family: $font-mono; font-size: 11px; padding: 2px 8px;
+  border-radius: 99px; border: 1px solid currentColor;
+  &.shipped    { color: $signal; }
+  &.processing { color: $amber; }
+  &.pending    { color: $ink-dim; }
+}
+
+// ── Load / auto-scaling panel ───────────────────────────────────
+.loadlab {
+  @include panel;
+  padding: 18px;
+
+  header { display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px; h2 { font-size: 14px; } .tag { @include label; } }
+
+  .controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+
+  button {
+    font-family: $font-mono; font-size: 12px; letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: transparent; color: $signal;
+    border: 1px solid $signal; border-radius: $radius;
+    padding: 9px 14px; cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    &:hover { background: $signal; color: $bg; }
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+    &.ghost { color: $ink-dim; border-color: $line;
+      &:hover { background: $panel-alt; color: $ink; } }
+  }
+
+  .replicas { display: grid; gap: 8px; }
+  .replica {
+    display: grid; grid-template-columns: 120px 1fr 64px; align-items: center;
+    gap: 12px; font-family: $font-mono; font-size: 12px;
+    .id { color: $cyan; }
+    .bar { height: 10px; background: $panel-alt; border-radius: 99px;
+      overflow: hidden; border: 1px solid $line;
+      i { display: block; height: 100%; width: 0;
+        background: linear-gradient(90deg, $signal-deep, $signal);
+        transition: width 0.4s ease; }
+    }
+    .pct { text-align: right; color: $ink-dim; }
+  }
+
+  .note { @include label; margin-top: 14px; line-height: 1.6;
+    text-transform: none; letter-spacing: 0.02em; font-size: 11.5px; }
+}
+
+// staggered entrance
+.card, .metric, .loadlab { animation: rise 0.5s both; }
+.metric:nth-child(2) { animation-delay: 0.05s; }
+.metric:nth-child(3) { animation-delay: 0.1s; }
+.metric:nth-child(4) { animation-delay: 0.15s; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.error { color: $red; font-family: $font-mono; font-size: 12px; }

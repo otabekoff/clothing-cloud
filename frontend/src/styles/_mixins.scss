@@ -1,0 +1,36 @@
+@use "variables" as *;
+
+// Reusable panel surface with a hairline border + faint inner glow.
+@mixin panel {
+  background: $panel;
+  border: 1px solid $line;
+  border-radius: $radius;
+  position: relative;
+}
+
+// Uppercase mono label used for every section/metric heading.
+@mixin label {
+  font-family: $font-mono;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: $ink-dim;
+}
+
+// Tiny status pill. Pass the dot/text colour.
+@mixin pill($c) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: $c;
+  &::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: $c;
+    box-shadow: 0 0 8px $c;
+  }
+}

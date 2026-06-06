@@ -1,0 +1,128 @@
+# ════════════════════════════════════════════════════════════════
+#  CI/CD pipeline (criterion: "Practically implement a CI/CD automation
+#  pipeline"). Targets AWS: Amazon ECR for images, an EC2 instance running
+#  Docker Compose for the deployment. Three gated stages:
+#
+#    test    → backend unit tests + frontend build (quality gate)
+#    build   → build & push backend/frontend/lb images to Amazon ECR
+#    deploy  → SSH to the EC2 instance, pull images, recreate the stack,
+#              run a post-deploy smoke test
+#
+#  Required repository secrets (Settings → Secrets and variables → Actions):
+#    AWS_ACCESS_KEY_ID       IAM user/key allowed to push to ECR
+#    AWS_SECRET_ACCESS_KEY   matching secret
+#    AWS_REGION              e.g. eu-central-1
+#    AWS_ACCOUNT_ID          12-digit account id (used to build the ECR URL)
+#    EC2_HOST                EC2 public IP or DNS name
+#    EC2_USER                ssh user (ec2-user on Amazon Linux, ubuntu on Ubuntu)
+#    EC2_SSH_KEY             private key for that user
+#
+#  See docs/aws-deploy.md for the one-time console + CLI setup.
+# ════════════════════════════════════════════════════════════════
+name: ci-cd
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend deps & run tests
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pytest -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build frontend (type/asset check)
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push images
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          # repo dir → ECR repo name (nginx image is published as "lb")
+          for svc in backend frontend nginx; do
+            name=$svc; [ "$svc" = "nginx" ] && name=lb
+            repo="$ECR_REGISTRY/nimbus/$name"
+            docker build -t "$repo:$SHA" -t "$repo:latest" "./$svc"
+            docker push "$repo:$SHA"
+            docker push "$repo:latest"
+          done
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy compose + scripts to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.prod.yml,scripts/smoke-test.sh"
+          target: "~/nimbus"
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: AWS_REGION,AWS_ACCOUNT_ID
+          script: |
+            export AWS_REGION=${{ secrets.AWS_REGION }}
+            export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
+            export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+            cd ~/nimbus
+            # Authenticate Docker to ECR using the instance's IAM role
+            aws ecr get-login-password --region "$AWS_REGION" \
+              | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+            # ECR_REGISTRY is consumed by docker-compose.prod.yml
+            echo "ECR_REGISTRY=$ECR_REGISTRY" > .deploy.env
+            ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml pull
+            ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+            chmod +x scripts/smoke-test.sh
+            sleep 8
+            ./scripts/smoke-test.sh http://localhost http://localhost:8080

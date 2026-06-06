@@ -1,0 +1,22 @@
+// ── Design tokens ────────────────────────────────────────────────
+// Aesthetic: industrial operations console. Near-black canvas, signal
+// lime as the single sharp accent, amber/red reserved for load + alerts.
+
+$bg:          #0c0e0d;
+$panel:       #141715;
+$panel-alt:   #1b1f1c;
+$line:        #2a302c;
+$ink:         #e7ece8;
+$ink-dim:     #8a948c;
+
+$signal:      #c4f042;   // primary accent — "system live"
+$signal-deep: #8fb52e;
+$amber:       #f0a93a;   // load / warming up
+$red:         #ff5a4d;   // alert / shed
+$cyan:        #4fd6c8;   // CRM domain tint
+
+$radius: 4px;
+$gap: 18px;
+
+$font-display: "Archivo", system-ui, sans-serif;
+$font-mono: "JetBrains Mono", ui-monospace, monospace;
