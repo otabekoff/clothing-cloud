@@ -1,6 +1,7 @@
 """
-Minimal API tests executed in the GitHub Actions CI stage (criterion C.M3).
-Uses an in-memory SQLite database so CI needs no external services.
+API tests executed in the GitHub Actions CI stage (criterion C.M3).
+Uses an in-memory SQLite database so CI needs no external services. Covers the
+ops endpoints, JWT auth, RBAC enforcement, and a CRUD round-trip.
 """
 
 import os
@@ -28,9 +29,6 @@ from app.main import app  # noqa: E402
 from app.database import Base  # noqa: E402
 from app.seed import seed as seed_data  # noqa: E402
 
-# The FastAPI lifespan (which creates + seeds tables) only fires when TestClient
-# is used as a context manager. We set the schema up directly so the simple
-# module-level client below has data to read.
 Base.metadata.create_all(bind=test_engine)
 _session = database.SessionLocal()
 try:
@@ -41,6 +39,17 @@ finally:
 client = TestClient(app)
 
 
+def token(email: str, password: str) -> str:
+    r = client.post("/api/auth/login", data={"username": email, "password": password})
+    assert r.status_code == 200, r.text
+    return r.json()["access_token"]
+
+
+def auth(email: str, password: str) -> dict:
+    return {"Authorization": f"Bearer {token(email, password)}"}
+
+
+# ── Ops endpoints (no auth) ──────────────────────────────────────
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200
@@ -53,15 +62,70 @@ def test_whoami_reports_instance():
     assert "instance" in r.json()
 
 
+# ── Auth ─────────────────────────────────────────────────────────
+def test_login_returns_token_and_user():
+    r = client.post(
+        "/api/auth/login", data={"username": "admin@nimbus.dev", "password": "admin123"}
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["token_type"] == "bearer"
+    assert body["user"]["role"] == "admin"
+
+
+def test_login_rejects_bad_password():
+    r = client.post("/api/auth/login", data={"username": "admin@nimbus.dev", "password": "wrong"})
+    assert r.status_code == 401
+
+
+def test_protected_endpoint_requires_token():
+    assert client.get("/api/erp/products").status_code == 401
+
+
+# ── Data access with auth ────────────────────────────────────────
 def test_seeded_products_present():
-    r = client.get("/api/erp/products")
+    r = client.get("/api/erp/products", headers=auth("viewer@nimbus.dev", "viewer123"))
     assert r.status_code == 200
     assert len(r.json()) >= 1
 
 
-def test_create_order():
-    customers = client.get("/api/crm/customers").json()
+def test_dashboard_returns_kpis():
+    r = client.get("/api/dashboard", headers=auth("viewer@nimbus.dev", "viewer123"))
+    assert r.status_code == 200
+    assert "kpis" in r.json()
+    assert r.json()["kpis"]["products"] >= 1
+
+
+# ── RBAC ─────────────────────────────────────────────────────────
+def test_viewer_cannot_create_product():
+    r = client.post(
+        "/api/erp/products",
+        headers=auth("viewer@nimbus.dev", "viewer123"),
+        json={"sku": "X-1", "name": "x", "category": "Tops", "unit_price": 1.0},
+    )
+    assert r.status_code == 403
+
+
+def test_manager_can_create_order():
+    customers = client.get(
+        "/api/crm/customers", headers=auth("manager@nimbus.dev", "manager123")
+    ).json()
     cid = customers[0]["id"]
-    r = client.post("/api/crm/orders", json={"customer_id": cid, "total": 100.0})
+    r = client.post(
+        "/api/crm/orders",
+        headers=auth("manager@nimbus.dev", "manager123"),
+        json={"customer_id": cid, "total": 100.0},
+    )
     assert r.status_code == 201
     assert r.json()["status"] == "pending"
+
+
+def test_viewer_cannot_list_users():
+    r = client.get("/api/users", headers=auth("viewer@nimbus.dev", "viewer123"))
+    assert r.status_code == 403
+
+
+def test_admin_can_list_users():
+    r = client.get("/api/users", headers=auth("admin@nimbus.dev", "admin123"))
+    assert r.status_code == 200
+    assert len(r.json()) >= 3

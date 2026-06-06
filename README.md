@@ -5,8 +5,9 @@ the Cloud**. It migrates a wholesale clothing company's ERP, CRM and WMS systems
 onto one secure cloud network and demonstrates load balancing, auto-scaling and
 a CI/CD pipeline end-to-end.
 
-**Stack:** React 19 + SCSS · Python FastAPI · PostgreSQL · Docker / Compose ·
-Nginx load balancer · GitHub Actions → AWS (EC2 + ECR).
+**Stack:** React 19 + React Router 7 + Recharts + SCSS · Python FastAPI (JWT
+auth + RBAC) · PostgreSQL · Docker / Compose · Nginx load balancer ·
+GitHub Actions → AWS (EC2 + ECR).
 
 ---
 
@@ -27,9 +28,33 @@ docker compose up --build
 
 Then open:
 
-- **http://localhost:8000** — the dynamic website (NIMBUS console)
+- **http://localhost:8000** — the NIMBUS web app (sign in with a demo account below)
 - **http://localhost:8080/health** — backend via the load balancer
 - **http://localhost:8080/whoami** — shows which replica answered (refresh to see it change)
+
+### Demo accounts
+
+The app has JWT login with three role grades (RBAC). Click a card on the login
+screen to autofill, or use:
+
+| Role | Email | Password | Can do |
+|---|---|---|---|
+| Admin | `admin@nimbus.dev` | `admin123` | everything, incl. user management |
+| Manager | `manager@nimbus.dev` | `manager123` | read + create/edit/delete business records |
+| Viewer | `viewer@nimbus.dev` | `viewer123` | read-only across all modules |
+
+> These seeded credentials are for the demo only. Set a strong `JWT_SECRET` and
+> replace the demo users before any real use.
+
+### What's in the app
+
+A single-page React app (React Router v7) with a light SaaS dashboard:
+
+- **Dashboard** — KPIs + Recharts visualizations (revenue trend, revenue by
+  status, stock by warehouse, products by category)
+- **Products (ERP)**, **Stock (WMS)**, **Customers / Orders (CRM)** — full
+  create/read/update/delete, gated by role
+- **User Management** — admin-only account & role administration
 
 Start with more replicas:
 
@@ -47,9 +72,14 @@ docker compose down -v
 
 ## Demonstrating load balancing & auto-scaling (Task 1.6)
 
-**Option A — in the browser:** open the site and use the **Load Balancer ·
-Auto-Scaling Lab** panel. Click *Send 60-request burst*; the bars show traffic
-spreading across every running replica.
+**Option A — quick proof in a terminal:** hit the load balancer repeatedly and
+watch the answering replica rotate.
+
+```bash
+# scale up first, then fire a burst
+docker compose up -d --scale backend=4
+for i in $(seq 1 12); do curl -s http://localhost:8080/whoami | grep -o '"instance":"[^"]*"'; done
+```
 
 **Option B — full scaling loop:**
 
@@ -66,7 +96,7 @@ locust -f loadtest/locustfile.py --host http://localhost:8080
 #   open http://localhost:8089, set e.g. 200 users, watch:
 #     - autoscale.sh adding replicas as CPU passes 60%
 #     - docker stats showing CPU spread across new containers
-#     - the browser Load Lab redistributing live
+#     - /whoami rotating across the new replicas (curl it in a loop)
 ```
 
 Capture the Locust latency/throughput numbers before and after scaling — that
@@ -136,11 +166,12 @@ cloud-erp-platform/
 ├── docker-compose.prod.yml     # production: pulls images from Amazon ECR
 ├── .github/workflows/ci-cd.yml # test → build → deploy
 ├── nginx/                      # Layer-7 load balancer (internet gateway)
-├── backend/                    # FastAPI: ERP/CRM/WMS routers + ops endpoints
-│   ├── app/                    #   config, db, models, schemas, routers, seed
-│   └── tests/                  #   API tests run in CI
-├── frontend/                   # React 19 + SCSS dashboard (the dynamic website)
-│   └── src/{api,styles,components}
+├── backend/                    # FastAPI: auth + ERP/CRM/WMS/dashboard routers
+│   ├── app/                    #   config, db, models, schemas, security, seed
+│   │   └── routers/            #   auth, users, dashboard, erp, crm, wms, health
+│   └── tests/                  #   API + auth + RBAC tests run in CI
+├── frontend/                   # React 19 SPA · React Router v7 · Recharts · SCSS
+│   └── src/{api,auth,components,hooks,pages,styles}
 ├── loadtest/locustfile.py      # scalability test
 ├── scripts/                    # autoscale.sh, smoke-test.sh
 ├── docs/architecture.md        # design + full BTEC criteria mapping
@@ -162,7 +193,7 @@ cloud-erp-platform/
 | B.P4 how remote clients interact with cloud services | §2; frontend → LB → backend |
 | C.P5 design a networked cloud solution | whole topology + `docker-compose.yml` |
 | C.P6 implement the networking solution | runnable stack (`docker compose up`) |
-| C.M3 test for performance & scalability | Locust test + Load Lab |
+| C.M3 test for performance & scalability | Locust test + `/whoami` LB rotation |
 | C.D2 justify effectiveness from test results | before/after Locust comparison |
 | D.P7 recommend enhancements from test results | §5 connectivity options |
 | D.P8 implement enhancements | auto-scaler, least-loaded retry, healthchecks |
