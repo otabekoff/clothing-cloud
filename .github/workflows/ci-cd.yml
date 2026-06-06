@@ -156,9 +156,15 @@ jobs:
                 echo "removing container $c (publishes 80/8080):"; docker rm -f "$c" || true
               fi
             done
-            for svc in httpd nginx apache2; do
-              sudo systemctl stop "$svc" 2>/dev/null && sudo systemctl disable "$svc" 2>/dev/null || true
+            # A host-level web server (commonly nginx, installed directly on the
+            # instance) holds :80. Stop+disable known services, then hard-kill
+            # any leftover listener so the frontend container can bind :80.
+            for svc in nginx httpd apache2; do
+              sudo systemctl disable --now "$svc" 2>/dev/null || true
             done
+            sudo pkill -x nginx 2>/dev/null || true
+            sudo fuser -k 80/tcp 8080/tcp 2>/dev/null || true
+            sleep 2
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
             chmod +x scripts/smoke-test.sh
