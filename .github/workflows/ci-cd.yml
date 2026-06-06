@@ -168,5 +168,5 @@ jobs:
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
             chmod +x scripts/smoke-test.sh
-            sleep 10
+            # smoke-test.sh polls /health with retries, so no fixed sleep needed
             ./scripts/smoke-test.sh http://localhost http://localhost:8080
