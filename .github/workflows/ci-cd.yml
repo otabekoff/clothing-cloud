@@ -41,22 +41,36 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install backend deps & run tests
+      - name: Install backend deps
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint backend (ruff)
         working-directory: backend
         run: |
-          pip install -r requirements.txt
-          pytest -q
+          ruff check .
+          ruff format --check .
+
+      - name: Run backend tests
+        working-directory: backend
+        run: pytest -q
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend (eslint)
+        working-directory: frontend
+        run: npm run lint
+
       - name: Build frontend (type/asset check)
         working-directory: frontend
-        run: |
-          npm install
-          npm run build
+        run: npm run build
 
   build-and-push:
     needs: test

@@ -9,17 +9,31 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [node, setNode] = useState("…");
   const [err, setErr] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setErr(null);
     Promise.all([api.products(), api.stock(), api.customers(), api.orders(), api.whoami()])
       .then(([p, s, c, o, w]) => {
         setProducts(p); setStock(s); setCustomers(c); setOrders(o); setNode(w.instance);
       })
-      .catch((e) => setErr(e.message));
-  }, []);
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
 
   const totalStock = stock.reduce((a, s) => a + s.quantity, 0);
   const revenue = orders.reduce((a, o) => a + o.total, 0);
+
+  // Renders a full-width row for the loading / empty cases so tables never
+  // collapse to a bare header (the "looks broken" state when data is absent).
+  const placeholder = (cols, rows) => {
+    if (loading) return <tr><td className="placeholder" colSpan={cols}>Loading…</td></tr>;
+    if (rows === 0) return <tr><td className="placeholder" colSpan={cols}>No data</td></tr>;
+    return null;
+  };
 
   return (
     <div className="shell">
@@ -32,12 +46,22 @@ export default function App() {
           </div>
         </div>
         <div className="meta">
-          <span className="live">system live</span>
+          <span className={err ? "live down" : "live"}>{err ? "system down" : "system live"}</span>
           <span className="node">served by replica <b>{node}</b></span>
         </div>
       </div>
 
-      {err && <p className="error">backend unreachable: {err}</p>}
+      {err && (
+        <div className="banner" role="alert">
+          <div>
+            <strong>Backend unreachable.</strong> {err}
+            <span className="hint">
+              Start the full stack with <code>docker compose up --build</code>, then retry.
+            </span>
+          </div>
+          <button onClick={load}>Retry</button>
+        </div>
+      )}
 
       <div className="metrics">
         <div className="metric">
@@ -69,6 +93,7 @@ export default function App() {
             <table>
               <thead><tr><th>SKU</th><th>Product</th><th>Warehouse</th><th className="num">Qty</th></tr></thead>
               <tbody>
+                {placeholder(4, stock.length)}
                 {stock.map((s) => (
                   <tr key={s.id}>
                     <td className="muted">{s.product.sku}</td>
@@ -86,6 +111,7 @@ export default function App() {
             <table>
               <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th className="num">Unit £</th></tr></thead>
               <tbody>
+                {placeholder(4, products.length)}
                 {products.map((p) => (
                   <tr key={p.id}>
                     <td className="muted">{p.sku}</td>
@@ -105,6 +131,7 @@ export default function App() {
             <table>
               <thead><tr><th>#</th><th>Customer</th><th>Status</th><th className="num">Total</th></tr></thead>
               <tbody>
+                {placeholder(4, orders.length)}
                 {orders.map((o) => {
                   const c = customers.find((x) => x.id === o.customer_id);
                   return (

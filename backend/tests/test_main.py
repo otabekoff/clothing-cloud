@@ -2,6 +2,7 @@
 Minimal API tests executed in the GitHub Actions CI stage (criterion C.M3).
 Uses an in-memory SQLite database so CI needs no external services.
 """
+
 import os
 
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"

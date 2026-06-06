@@ -61,6 +61,7 @@ body {
 
   .meta { text-align: right;
     .live { @include pill($signal); }
+    .live.down { @include pill($red); }
     .node { @include label; margin-top: 8px; display: block;
       b { color: $signal; font-weight: 500; }
     }
@@ -125,6 +126,33 @@ body {
     tr:hover td { background: $panel-alt; }
     .num { text-align: right; color: $signal; }
     .muted { color: $ink-dim; }
+    .placeholder { text-align: center; color: $ink-dim; padding: 22px 8px;
+      letter-spacing: 0.06em; }
+  }
+}
+
+// ── Backend-down banner ──────────────────────────────────────────
+.banner {
+  @include panel;
+  border-color: rgba($red, 0.5);
+  background: rgba($red, 0.08);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 18px; margin-bottom: $gap;
+
+  strong { color: $red; }
+  .hint { @include label; display: block; margin-top: 6px;
+    text-transform: none; letter-spacing: 0.02em; font-size: 11.5px;
+    code { color: $ink; } }
+
+  button {
+    flex-shrink: 0;
+    font-family: $font-mono; font-size: 12px; letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: transparent; color: $red;
+    border: 1px solid $red; border-radius: $radius;
+    padding: 8px 16px; cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    &:hover { background: $red; color: $bg; }
   }
 }
 
@@ -186,5 +214,3 @@ body {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
-.error { color: $red; font-family: $font-mono; font-size: 12px; }

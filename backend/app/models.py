@@ -8,7 +8,8 @@ ORM models for the three business systems being migrated to the cloud:
 A single relational schema keeps the systems integrated through one secure
 network, which is the core goal stated in the assignment brief.
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -57,6 +58,8 @@ class Order(Base):
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     status: Mapped[str] = mapped_column(String(30), default="pending")
     total: Mapped[float] = mapped_column(Float, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
     customer: Mapped["Customer"] = relationship(back_populates="orders")

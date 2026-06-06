@@ -6,6 +6,7 @@ connection is retried on startup because, in a cloud environment, the database
 service may become reachable a few seconds after the application container
 starts (ordering is not guaranteed across a network).
 """
+
 import time
 
 from sqlalchemy import create_engine
@@ -40,7 +41,7 @@ def get_db():
 def wait_for_db(retries: int = 20, delay: float = 1.5) -> None:
     """Block until the database in the private subnet accepts connections."""
     last_error = None
-    for attempt in range(1, retries + 1):
+    for _attempt in range(1, retries + 1):
         try:
             with engine.connect() as conn:
                 conn.exec_driver_sql("SELECT 1")

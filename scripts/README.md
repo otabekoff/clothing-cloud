@@ -204,5 +204,5 @@ aws iam delete-role --role-name nimbus-ec2-ecr
 ## Documentation
 
 - Full deployment guide: [../docs/aws-deploy.md](../docs/aws-deploy.md)
+- Network architecture: [../docs/architecture.md](../docs/architecture.md)
 - CI/CD workflow: [../.github/workflows/ci-cd.yml](../.github/workflows/ci-cd.yml)
-- Setup guide: [../SETUP.md](../SETUP.md)

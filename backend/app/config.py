@@ -5,6 +5,7 @@ All settings are read from environment variables so the same image can run
 unchanged across local, staging and production (a 12-factor principle that
 matters for cloud portability — see docs/architecture.md, criterion B.M2).
 """
+
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict

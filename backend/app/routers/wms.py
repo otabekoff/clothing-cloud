@@ -1,4 +1,5 @@
 """WMS: warehouse stock levels per location."""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session, joinedload
 

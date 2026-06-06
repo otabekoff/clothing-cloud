@@ -5,6 +5,7 @@ Operational endpoints used by the network layer:
   /whoami    -> returns the replica id so the LB demo can prove round-robin
   /api/load  -> burns CPU on demand to trigger the auto-scaling demonstration
 """
+
 import math
 import os
 import time

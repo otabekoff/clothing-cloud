@@ -5,6 +5,7 @@ Exposes the ERP/CRM/WMS APIs plus operational endpoints, mounts Prometheus
 metrics (so scalability can be measured — criterion C.M3 / D.M4), and creates
 + seeds the schema on startup once the private-subnet database is reachable.
 """
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -19,9 +20,7 @@ from .seed import seed
 
 settings = get_settings()
 
-REQUESTS = Counter(
-    "app_requests_total", "Total HTTP requests", ["method", "path", "instance"]
-)
+REQUESTS = Counter("app_requests_total", "Total HTTP requests", ["method", "path", "instance"])
 
 
 @asynccontextmanager
