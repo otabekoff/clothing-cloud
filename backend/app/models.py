@@ -17,6 +17,28 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
 
+class User(Base):
+    """An application user with a role that gates what they can do (RBAC).
+
+    Roles (least → most privilege): viewer, manager, admin.
+      - viewer:  read-only across all modules
+      - manager: read + create/update business records (no user management)
+      - admin:   full access, including managing other users
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(120))
+    role: Mapped[str] = mapped_column(String(20), default="viewer")
+    hashed_password: Mapped[str] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
 class Product(Base):
     __tablename__ = "products"
 

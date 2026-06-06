@@ -1,36 +1,35 @@
 @use "variables" as *;
 
-// Reusable panel surface with a hairline border + faint inner glow.
-@mixin panel {
-  background: $panel;
+@mixin card {
+  background: $surface;
   border: 1px solid $line;
   border-radius: $radius;
-  position: relative;
+  box-shadow: $shadow-sm;
 }
 
-// Uppercase mono label used for every section/metric heading.
 @mixin label {
-  font-family: $font-mono;
   font-size: 11px;
-  letter-spacing: 0.18em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: $ink-dim;
 }
 
-// Tiny status pill. Pass the dot/text colour.
-@mixin pill($c) {
+// Status / role chips
+@mixin chip($c) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: $font-mono;
-  font-size: 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
   color: $c;
-  &::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: $c;
-    box-shadow: 0 0 8px $c;
-  }
+  background: rgba($c, 0.1);
+}
+
+@mixin focus-ring {
+  outline: none;
+  border-color: $primary;
+  box-shadow: 0 0 0 3px rgba($primary, 0.18);
 }

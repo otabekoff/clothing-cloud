@@ -15,5 +15,18 @@ export default defineConfig({
       "/health": { target: "http://localhost:8080", changeOrigin: true },
     },
   },
-  build: { outDir: "dist", sourcemap: false },
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+    rollupOptions: {
+      // Split heavy vendor libs into their own chunks so the app code and the
+      // charting library cache independently and the initial parse is smaller.
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react-router"],
+          charts: ["recharts"],
+        },
+      },
+    },
+  },
 });

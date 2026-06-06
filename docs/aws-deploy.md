@@ -182,10 +182,11 @@ docker version && docker compose version && aws --version
 
 ```bash
 mkdir -p ~/nimbus && cd ~/nimbus
-cat > .env <<'EOF'
+cat > .env <<EOF
 POSTGRES_USER=erp
 POSTGRES_PASSWORD=change-me-strong
 POSTGRES_DB=erp
+JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))")
 EOF
 ```
 

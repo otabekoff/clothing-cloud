@@ -38,6 +38,44 @@ def get_db():
         db.close()
 
 
+def init_schema(seed_fn) -> None:
+    """Create tables and seed data exactly once, even with multiple replicas.
+
+    Every backend replica runs this on startup. A Postgres advisory lock
+    serialises them so they don't race on `CREATE TABLE` / seeding (which
+    previously caused a "relation already exists" crash on the loser). SQLite
+    (used by the unit tests) has no advisory locks and runs single-process, so
+    we just create + seed directly there.
+    """
+    is_postgres = settings.database_url.startswith("postgresql")
+
+    if not is_postgres:
+        Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
+        try:
+            seed_fn(db)
+        finally:
+            db.close()
+        return
+
+    # Arbitrary but stable lock key shared by all replicas. Hold the advisory
+    # lock on a dedicated connection while a separate session does the work, so
+    # only one replica creates/seeds at a time and the loser waits, then no-ops.
+    lock_key = 909_001
+    lock_conn = engine.connect()
+    try:
+        lock_conn.exec_driver_sql(f"SELECT pg_advisory_lock({lock_key})")
+        Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
+        try:
+            seed_fn(db)
+        finally:
+            db.close()
+    finally:
+        lock_conn.exec_driver_sql(f"SELECT pg_advisory_unlock({lock_key})")
+        lock_conn.close()
+
+
 def wait_for_db(retries: int = 20, delay: float = 1.5) -> None:
     """Block until the database in the private subnet accepts connections."""
     last_error = None
