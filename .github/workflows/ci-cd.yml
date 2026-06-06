@@ -142,10 +142,17 @@ jobs:
             echo "ECR_REGISTRY=$ECR_REGISTRY" > .deploy.env
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml pull
             # Stop the old stack first so published ports (80/8080) are released
-            # cleanly — otherwise a wedged container from a prior deploy can hold
-            # a port and block the new lb/frontend from binding. The pgdata
-            # volume is named, so database data persists across down/up.
+            # cleanly. The pgdata volume is named, so DB data persists.
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml down --remove-orphans || true
+            # Belt-and-braces: an earlier deploy under a DIFFERENT compose
+            # project name (e.g. before this stack was renamed) can leave a
+            # container still publishing :80 or :8080, which `down` above won't
+            # touch. Force-remove anything still bound to those ports so the new
+            # lb/frontend can bind.
+            for port in 80 8080; do
+              stuck=$(docker ps -q --filter "publish=$port")
+              [ -n "$stuck" ] && docker rm -f $stuck || true
+            done
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
             chmod +x scripts/smoke-test.sh
