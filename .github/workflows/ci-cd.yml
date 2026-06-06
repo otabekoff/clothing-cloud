@@ -79,7 +79,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -141,8 +141,13 @@ jobs:
             # ECR_REGISTRY is consumed by docker-compose.prod.yml
             echo "ECR_REGISTRY=$ECR_REGISTRY" > .deploy.env
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml pull
+            # Stop the old stack first so published ports (80/8080) are released
+            # cleanly — otherwise a wedged container from a prior deploy can hold
+            # a port and block the new lb/frontend from binding. The pgdata
+            # volume is named, so database data persists across down/up.
+            ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml down --remove-orphans || true
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
             chmod +x scripts/smoke-test.sh
-            sleep 8
+            sleep 10
             ./scripts/smoke-test.sh http://localhost http://localhost:8080
