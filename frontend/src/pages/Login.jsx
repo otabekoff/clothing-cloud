@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Navigate, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthContext.jsx";
 
 const DEMO = [
@@ -9,12 +9,16 @@ const DEMO = [
 ];
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  const dest = location.state?.from || "/app";
+  if (user) return <Navigate to={dest} replace />;
 
   const submit = async (e) => {
     e?.preventDefault();
@@ -22,7 +26,7 @@ export default function Login() {
     setBusy(true);
     try {
       await login(email, password);
-      navigate("/", { replace: true });
+      navigate(dest, { replace: true });
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {

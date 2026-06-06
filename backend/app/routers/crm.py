@@ -4,7 +4,7 @@ Reads are open to any authenticated user; writes require `manager`+.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
 from ..database import get_db
@@ -69,9 +69,37 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db)):
 
 
 # ── Orders ───────────────────────────────────────────────────────
+def _build_items(db: Session, items_in: list[schemas.OrderItemIn]) -> list[models.OrderItem]:
+    """Resolve line items against products, defaulting unit price to the product's."""
+    built: list[models.OrderItem] = []
+    for line in items_in:
+        product = db.get(models.Product, line.product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {line.product_id} not found")
+        price = line.unit_price if line.unit_price is not None else product.unit_price
+        built.append(
+            models.OrderItem(product_id=product.id, quantity=line.quantity, unit_price=price)
+        )
+    return built
+
+
+def _orders_query(db: Session):
+    return db.query(models.Order).options(
+        joinedload(models.Order.items).joinedload(models.OrderItem.product)
+    )
+
+
 @router.get("/orders", response_model=list[schemas.OrderOut])
 def list_orders(db: Session = Depends(get_db)):
-    return db.query(models.Order).order_by(models.Order.created_at.desc()).all()
+    return _orders_query(db).order_by(models.Order.created_at.desc()).all()
+
+
+@router.get("/orders/{order_id}", response_model=schemas.OrderOut)
+def get_order(order_id: int, db: Session = Depends(get_db)):
+    order = _orders_query(db).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
 
 
 @router.post(
@@ -83,13 +111,20 @@ def list_orders(db: Session = Depends(get_db)):
 def create_order(payload: schemas.OrderCreate, db: Session = Depends(get_db)):
     if not db.get(models.Customer, payload.customer_id):
         raise HTTPException(status_code=404, detail="Customer not found")
+    items = _build_items(db, payload.items)
+    # If line items are supplied the total is computed from them; otherwise fall
+    # back to the explicit total (kept for the simple API contract).
+    total = sum(i.quantity * i.unit_price for i in items) if items else (payload.total or 0.0)
     order = models.Order(
-        customer_id=payload.customer_id, total=payload.total, status=payload.status
+        customer_id=payload.customer_id,
+        status=payload.status,
+        notes=payload.notes,
+        total=round(total, 2),
+        items=items,
     )
     db.add(order)
     db.commit()
-    db.refresh(order)
-    return order
+    return get_order(order.id, db)
 
 
 @router.patch(
@@ -101,11 +136,18 @@ def update_order(order_id: int, payload: schemas.OrderUpdate, db: Session = Depe
     order = db.get(models.Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "items" in data:
+        # Replace the line items wholesale and recompute the total.
+        items = _build_items(db, payload.items or [])
+        order.items = items
+        order.total = round(sum(i.quantity * i.unit_price for i in items), 2)
+        data.pop("items", None)
+        data.pop("total", None)  # computed, ignore any client total
+    for field, value in data.items():
         setattr(order, field, value)
     db.commit()
-    db.refresh(order)
-    return order
+    return get_order(order.id, db)
 
 
 @router.delete(

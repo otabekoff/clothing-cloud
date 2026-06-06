@@ -53,11 +53,36 @@ async function request(path, { method = "GET", body, form } = {}) {
   return res.json();
 }
 
+// Multipart upload (image). Returns { url }.
+async function uploadFile(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const headers = {};
+  const token = tokenStore.get();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch("/api/uploads", { method: "POST", headers, body: fd });
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const d = await res.json();
+      if (d.detail) detail = d.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
+}
+
 export const api = {
   // auth
   login: (email, password) =>
     request("/api/auth/login", { method: "POST", form: { username: email, password } }),
   me: () => request("/api/auth/me"),
+  updateProfile: (body) => request("/api/auth/me", { method: "PATCH", body }),
+
+  // uploads
+  upload: uploadFile,
 
   // dashboard
   dashboard: () => request("/api/dashboard"),
@@ -82,6 +107,7 @@ export const api = {
 
   // CRM — orders
   orders: () => request("/api/crm/orders"),
+  order: (id) => request(`/api/crm/orders/${id}`),
   createOrder: (body) => request("/api/crm/orders", { method: "POST", body }),
   updateOrder: (id, body) => request(`/api/crm/orders/${id}`, { method: "PATCH", body }),
   deleteOrder: (id) => request(`/api/crm/orders/${id}`, { method: "DELETE" }),

@@ -1,29 +1,31 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "../api/client.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { Icon } from "./icons.jsx";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: "dashboard", end: true },
-  { to: "/products", label: "Products (ERP)", icon: "box" },
-  { to: "/stock", label: "Stock (WMS)", icon: "warehouse" },
-  { to: "/customers", label: "Customers (CRM)", icon: "users" },
-  { to: "/orders", label: "Orders (CRM)", icon: "cart" },
-  { to: "/users", label: "User Management", icon: "shield", minRole: "admin" },
+  { to: "/app", label: "Dashboard", icon: "dashboard", end: true },
+  { to: "/app/products", label: "Products (ERP)", icon: "box" },
+  { to: "/app/stock", label: "Stock (WMS)", icon: "warehouse" },
+  { to: "/app/customers", label: "Customers (CRM)", icon: "users" },
+  { to: "/app/orders", label: "Orders (CRM)", icon: "cart" },
+  { to: "/app/users", label: "User Management", icon: "shield", minRole: "admin" },
 ];
 
 const TITLES = {
-  "/": ["Dashboard", "Operations overview"],
-  "/products": ["Products", "ERP · product master data"],
-  "/stock": ["Warehouse Stock", "WMS · inventory by location"],
-  "/customers": ["Customers", "CRM · wholesale accounts"],
-  "/orders": ["Orders", "CRM · sales orders"],
-  "/users": ["User Management", "Admin · accounts & roles"],
+  "/app": ["Dashboard", "Operations overview"],
+  "/app/products": ["Products", "ERP · product master data"],
+  "/app/stock": ["Warehouse Stock", "WMS · inventory by location"],
+  "/app/customers": ["Customers", "CRM · wholesale accounts"],
+  "/app/orders": ["Orders", "CRM · sales orders"],
+  "/app/users": ["User Management", "Admin · accounts & roles"],
+  "/app/profile": ["My Profile", "Account settings"],
 };
 
 export default function Layout() {
   const { user, logout, can } = useAuth();
+  const navigate = useNavigate();
   const { pathname } = useLocation();
   const [node, setNode] = useState("…");
   const [healthy, setHealthy] = useState(true);
@@ -35,16 +37,18 @@ export default function Layout() {
   const [title, crumb] = TITLES[pathname] || ["NIMBUS", ""];
   const initials = (user?.full_name || "?").split(" ").map((s) => s[0]).slice(0, 2).join("");
 
+  const doLogout = () => { logout(); navigate("/", { replace: true }); };
+
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">
+        <NavLink to="/" className="brand">
           <div className="mark">N</div>
           <div>
             <div className="name">NIMBUS</div>
             <div className="sub">ERP · CRM · WMS</div>
           </div>
-        </div>
+        </NavLink>
 
         <nav>
           <div className="group">Modules</div>
@@ -52,17 +56,18 @@ export default function Layout() {
             if (item.minRole && !can(item.minRole)) return null;
             const Ico = Icon[item.icon];
             return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) => `navlink ${isActive ? "active" : ""}`}
-              >
+              <NavLink key={item.to} to={item.to} end={item.end}
+                className={({ isActive }) => `navlink ${isActive ? "active" : ""}`}>
                 <Ico className="ico" />
                 {item.label}
               </NavLink>
             );
           })}
+          <div className="group">Account</div>
+          <NavLink to="/app/profile" className={({ isActive }) => `navlink ${isActive ? "active" : ""}`}>
+            <Icon.users className="ico" />
+            My Profile
+          </NavLink>
         </nav>
 
         <div className="side-foot">
@@ -80,14 +85,16 @@ export default function Layout() {
             <span className={`health-dot ${healthy ? "" : "down"}`}>
               {healthy ? "system live" : "backend down"}
             </span>
-            <div className="avatar">
+            <NavLink to="/app/profile" className="avatar">
               <div className="who">
                 <div className="n">{user?.full_name}</div>
                 <div className="r">{user?.role}</div>
               </div>
-              <div className="pic">{initials.toUpperCase()}</div>
-            </div>
-            <button className="btn ghost sm" onClick={logout} title="Sign out">
+              <div className="pic">
+                {user?.avatar_url ? <img src={user.avatar_url} alt="" /> : initials.toUpperCase()}
+              </div>
+            </NavLink>
+            <button className="btn ghost sm" onClick={doLogout} title="Sign out">
               <Icon.logout width={15} height={15} />
             </button>
           </div>

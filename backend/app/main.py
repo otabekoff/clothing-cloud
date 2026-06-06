@@ -7,15 +7,17 @@ metrics (so scalability can be measured — criterion C.M3 / D.M4), and creates
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import Counter, make_asgi_app
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import get_settings
 from .database import init_schema, wait_for_db
-from .routers import auth, crm, dashboard, erp, health, users, wms
+from .routers import auth, crm, dashboard, erp, health, uploads, users, wms
 from .seed import seed
 
 settings = get_settings()
@@ -60,6 +62,13 @@ app.include_router(dashboard.router)
 app.include_router(erp.router)
 app.include_router(crm.router)
 app.include_router(wms.router)
+app.include_router(uploads.router)
+
+# Serve uploaded images. The directory is created here so the mount succeeds
+# even on a fresh volume.
+_media = Path(settings.media_dir)
+_media.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=str(_media)), name="media")
 
 
 @app.get("/")

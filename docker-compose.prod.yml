@@ -36,6 +36,8 @@ services:
       db:
         condition: service_healthy
     networks: [private_net]
+    volumes:
+      - media:/data/media    # uploaded images, shared across replicas
     restart: unless-stopped
     deploy:
       replicas: 2
@@ -64,3 +66,4 @@ networks:
 
 volumes:
   pgdata:
+  media:

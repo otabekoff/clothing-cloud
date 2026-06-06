@@ -42,6 +42,9 @@ services:
       # {{.Task.Slot}}-style identity isn't available in compose, so we derive a
       # short id from the container hostname at runtime instead (see command).
       ENVIRONMENT: production
+      # Fixed secret for LOCAL DEV so every replica validates the same tokens.
+      # Production supplies a real JWT_SECRET via the .env file (see prod compose).
+      JWT_SECRET: dev-shared-secret-not-for-production
     command: >
       sh -c 'export INSTANCE_ID=$(hostname | cut -c1-12);
              exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2'
@@ -50,6 +53,8 @@ services:
         condition: service_healthy
     networks:
       - private_net          # app tier is private; only the LB can reach it
+    volumes:
+      - media:/data/media    # uploaded images, shared across replicas
     # No published ports: the backend is NEVER exposed to the host/internet.
     deploy:
       replicas: 2            # start with 2; scale with --scale backend=N
@@ -83,3 +88,4 @@ networks:
 
 volumes:
   pgdata:
+  media:

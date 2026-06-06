@@ -129,3 +129,54 @@ def test_admin_can_list_users():
     r = client.get("/api/users", headers=auth("admin@nimbus.dev", "admin123"))
     assert r.status_code == 200
     assert len(r.json()) >= 3
+
+
+# ── Orders with line items ───────────────────────────────────────
+def test_order_total_computed_from_line_items():
+    h = auth("manager@nimbus.dev", "manager123")
+    customers = client.get("/api/crm/customers", headers=h).json()
+    products = client.get("/api/erp/products", headers=h).json()
+    p = products[0]
+    r = client.post(
+        "/api/crm/orders",
+        headers=h,
+        json={
+            "customer_id": customers[0]["id"],
+            "items": [{"product_id": p["id"], "quantity": 3}],
+        },
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert len(body["items"]) == 1
+    assert body["total"] == round(3 * p["unit_price"], 2)
+
+
+def test_rich_product_fields_persist():
+    h = auth("manager@nimbus.dev", "manager123")
+    r = client.post(
+        "/api/erp/products",
+        headers=h,
+        json={
+            "sku": "RICH-1",
+            "name": "Rich Product",
+            "category": "Tops",
+            "unit_price": 9.99,
+            "cost_price": 4.0,
+            "supplier": "ACME",
+            "reorder_level": 50,
+            "description": "has fields",
+        },
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["supplier"] == "ACME"
+    assert body["reorder_level"] == 50
+    assert body["description"] == "has fields"
+
+
+# ── Profile self-service ─────────────────────────────────────────
+def test_user_can_update_own_profile():
+    h = auth("viewer@nimbus.dev", "viewer123")
+    r = client.patch("/api/auth/me", headers=h, json={"full_name": "Vera V. Updated"})
+    assert r.status_code == 200
+    assert r.json()["full_name"] == "Vera V. Updated"

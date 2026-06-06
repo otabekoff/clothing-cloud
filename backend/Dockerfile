@@ -14,8 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-# Run as a non-root user (security hardening — criterion D)
-RUN useradd --create-home --uid 10001 appuser
+# Run as a non-root user (security hardening — criterion D). Pre-create the
+# media directory owned by that user so the uploads volume is writable.
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /data/media \
+    && chown -R appuser:appuser /data
 USER appuser
 
 EXPOSE 8000

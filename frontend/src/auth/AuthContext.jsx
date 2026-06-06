@@ -40,8 +40,11 @@ export function AuthProvider({ children }) {
     [user]
   );
 
+  // Merge updated fields into the current user (after a profile save).
+  const updateUser = useCallback((patch) => setUser((u) => ({ ...u, ...patch })), []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, can }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, can, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
