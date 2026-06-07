@@ -114,7 +114,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.prod.yml,scripts/smoke-test.sh"
+          source: "docker-compose.prod.yml,scripts/smoke-test.sh,caddy/Caddyfile"
           target: "~/nimbus"
 
       - name: Deploy on EC2
@@ -135,6 +135,10 @@ jobs:
             touch .env
             grep -q '^JWT_SECRET=' .env || \
               echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')" >> .env
+            # Domain for Caddy's auto-HTTPS. Override via the DOMAIN repo
+            # variable; defaults to vestro.dev. ACME_EMAIL is optional.
+            grep -q '^DOMAIN=' .env || echo "DOMAIN=${{ vars.DOMAIN || 'vestro.dev' }}" >> .env
+            grep -q '^ACME_EMAIL=' .env || echo "ACME_EMAIL=${{ vars.ACME_EMAIL || 'admin@vestro.dev' }}" >> .env
             # Authenticate Docker to ECR using the instance's IAM role
             aws ecr get-login-password --region "$AWS_REGION" \
               | docker login --username AWS --password-stdin "$ECR_REGISTRY"
@@ -144,26 +148,25 @@ jobs:
             # Stop the old stack first so published ports (80/8080) are released
             # cleanly. The pgdata volume is named, so DB data persists.
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml down --remove-orphans || true
-            # Free ports 80/8080 no matter what holds them. `compose down` only
-            # covers this project; a container from an old project name — or a
-            # host service (httpd/nginx) installed directly — can still hold the
+            # Free ports 80/443/8080 no matter what holds them. `compose down`
+            # only covers this project; a container from an old project name — or
+            # a host service (httpd/nginx) installed directly — can still hold a
             # port. Diagnose, then remove the offending container(s) and stop any
-            # host web server so the new lb/frontend can bind.
-            echo "--- who holds :80 / :8080 ---"
-            sudo ss -ltnp '( sport = :80 or sport = :8080 )' 2>/dev/null || true
+            # host web server so Caddy/lb can bind.
+            echo "--- who holds :80 / :443 / :8080 ---"
+            sudo ss -ltnp '( sport = :80 or sport = :443 or sport = :8080 )' 2>/dev/null || true
             for c in $(docker ps -aq); do
-              if docker port "$c" 2>/dev/null | grep -qE ':80$|:8080$|0\.0\.0\.0:(80|8080)->'; then
-                echo "removing container $c (publishes 80/8080):"; docker rm -f "$c" || true
+              if docker port "$c" 2>/dev/null | grep -qE ':(80|443|8080)$|0\.0\.0\.0:(80|443|8080)->'; then
+                echo "removing container $c (publishes 80/443/8080):"; docker rm -f "$c" || true
               fi
             done
-            # A host-level web server (commonly nginx, installed directly on the
-            # instance) holds :80. Stop+disable known services, then hard-kill
-            # any leftover listener so the frontend container can bind :80.
+            # A host-level web server (commonly nginx) can hold :80/:443.
+            # Stop+disable known services, then hard-kill any leftover listener.
             for svc in nginx httpd apache2; do
               sudo systemctl disable --now "$svc" 2>/dev/null || true
             done
             sudo pkill -x nginx 2>/dev/null || true
-            sudo fuser -k 80/tcp 8080/tcp 2>/dev/null || true
+            sudo fuser -k 80/tcp 443/tcp 8080/tcp 2>/dev/null || true
             sleep 2
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f

@@ -56,8 +56,25 @@ services:
     depends_on: [lb]
     networks: [public_net]
     restart: unless-stopped
+    # No host port: Caddy is the public entrypoint and proxies to it.
+
+  # Edge proxy: terminates TLS (auto Let's Encrypt) and serves the public site
+  # on 80/443. Reads caddy/Caddyfile, copied next to this file by the deploy job.
+  caddy:
+    image: caddy:2-alpine
+    depends_on: [frontend]
+    networks: [public_net]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN (e.g. vestro.dev) in the .env file}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@${DOMAIN}}
     ports:
-      - "80:80"            # public website on the EC2 instance's port 80
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # certificates & ACME account (must persist!)
+      - caddy_config:/config
 
 networks:
   public_net:
@@ -68,3 +85,5 @@ networks:
 volumes:
   pgdata:
   media:
+  caddy_data:
+  caddy_config:

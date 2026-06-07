@@ -132,10 +132,23 @@ EC2 → *Launch instance*:
    | Type        | Port | Source            | Why                          |
    |-------------|------|-------------------|------------------------------|
    | SSH         | 22   | **My IP**         | admin access only            |
-   | HTTP        | 80   | Anywhere (0.0.0.0/0) | the public website        |
+   | HTTP        | 80   | Anywhere (0.0.0.0/0) | public site + Let's Encrypt challenge |
+   | HTTPS       | 443  | Anywhere (0.0.0.0/0) | the public website over TLS |
    | Custom TCP  | 8080 | **My IP**         | load balancer (testing only) |
 
    Leave the database/backend with **no** inbound rule — they are never exposed.
+
+   > **Port 80 AND 443 must both be open to the world.** The edge proxy (Caddy)
+   > uses port 80 for the Let's Encrypt HTTP-01 challenge and serves the site on
+   > 443. If 443 is closed, browsers can't reach the site — and because `.dev`
+   > domains are HSTS-preloaded, they refuse plain HTTP, so the site appears down.
+   >
+   > Add 443 to an existing instance via the console (EC2 → Security Groups →
+   > Inbound rules → Edit) or the CLI:
+   > ```bash
+   > aws ec2 authorize-security-group-ingress --group-id <sg-id> \
+   >   --protocol tcp --port 443 --cidr 0.0.0.0/0 --region "$AWS_REGION"
+   > ```
 6. **Advanced details → IAM instance profile:** select `nimbus-ec2-ecr`.
 7. **Launch.** Note the instance's **Public IPv4 address** and **Public DNS**.
 
