@@ -1,0 +1,43 @@
+// ── Design tokens — clean light SaaS dashboard ───────────────────
+// Bright neutral canvas, indigo primary accent, semantic status colours.
+
+$bg:          #f6f7f9;   // app background
+$surface:     #ffffff;   // cards / panels
+$surface-alt: #f1f3f5;   // hover / subtle fills
+$line:        #e4e7eb;   // hairline borders
+$line-strong: #d2d7dd;
+
+$ink:         #1a1d21;   // primary text
+$ink-soft:    #515862;   // secondary text
+$ink-dim:     #8b929c;   // muted / captions
+
+$primary:      #4f46e5;  // indigo — primary actions, active nav
+$primary-soft: #eef2ff;  // tint background
+$primary-deep: #4338ca;
+
+$cyan:   #0ea5b7;   // CRM accent
+$amber:  #d97706;   // WMS accent / warnings
+$green:  #16a34a;   // ERP accent / success
+$red:    #dc2626;   // danger / cancelled
+$violet: #7c3aed;
+
+// Chart palette (categorical)
+$chart-1: #4f46e5;
+$chart-2: #0ea5b7;
+$chart-3: #d97706;
+$chart-4: #16a34a;
+$chart-5: #7c3aed;
+$chart-6: #ec4899;
+
+$radius:    10px;
+$radius-sm: 7px;
+$gap:       20px;
+$sidebar-w: 248px;
+$topbar-h:  62px;
+
+$shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.04);
+$shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08);
+$shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.14);
+
+$font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+$font-mono: "JetBrains Mono", ui-monospace, monospace;

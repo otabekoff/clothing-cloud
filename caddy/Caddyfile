@@ -1,0 +1,25 @@
+# Caddy edge proxy — terminates TLS and reverse-proxies to the frontend.
+#
+# For the configured DOMAIN, Caddy automatically obtains and renews a
+# Let's Encrypt certificate (HTTP-01 challenge on :80) and redirects HTTP→HTTPS.
+# A catch-all HTTP site (matched by any other Host, e.g. the instance IP or
+# "localhost") serves the app over plain HTTP so the post-deploy smoke test,
+# which curls http://localhost on the box, keeps working.
+#
+# DOMAIN and ACME_EMAIL are provided as environment variables by docker-compose.
+
+{
+	email {$ACME_EMAIL}
+}
+
+# Public site over HTTPS for the real domain (cert auto-managed by Caddy).
+https://{$DOMAIN} {
+	encode gzip
+	reverse_proxy frontend:80
+}
+
+# Plain-HTTP catch-all for everything else (smoke test via localhost / IP, and
+# the ACME HTTP-01 challenge is handled automatically by Caddy on :80).
+http:// {
+	reverse_proxy frontend:80
+}

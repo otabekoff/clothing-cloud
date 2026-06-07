@@ -1,0 +1,89 @@
+# Production topology for an AWS EC2 instance running Docker Compose.
+# Pulls pre-built images from Amazon ECR. Same public/private subnet design as
+# the dev compose (two bridge networks model the VPC subnets).
+#
+# ECR_REGISTRY is provided by the deploy job / shell, e.g.
+#   123456789012.dkr.ecr.eu-central-1.amazonaws.com
+# Postgres credentials come from the .env file placed next to this file on EC2.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-erp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-erp}
+      POSTGRES_DB: ${POSTGRES_DB:-erp}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [private_net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    image: ${ECR_REGISTRY}/nimbus/backend:latest
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD:-erp}@db:5432/${POSTGRES_DB:-erp}
+      ENVIRONMENT: production
+      JWT_SECRET: ${JWT_SECRET:?set a strong JWT_SECRET in the .env file}
+      MEDIA_DIR: /data/media   # the mounted volume below
+    command: >
+      sh -c 'export INSTANCE_ID=$(hostname | cut -c1-12);
+             exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2'
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [private_net]
+    volumes:
+      - media:/data/media    # uploaded images, shared across replicas
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  lb:
+    image: ${ECR_REGISTRY}/nimbus/lb:latest
+    depends_on: [backend]
+    networks: [private_net, public_net]
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+
+  frontend:
+    image: ${ECR_REGISTRY}/nimbus/frontend:latest
+    depends_on: [lb]
+    networks: [public_net]
+    restart: unless-stopped
+    # No host port: Caddy is the public entrypoint and proxies to it.
+
+  # Edge proxy: terminates TLS (auto Let's Encrypt) and serves the public site
+  # on 80/443. Reads caddy/Caddyfile, copied next to this file by the deploy job.
+  caddy:
+    image: caddy:2-alpine
+    depends_on: [frontend]
+    networks: [public_net]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN (e.g. vestro.dev) in the .env file}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@${DOMAIN}}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # certificates & ACME account (must persist!)
+      - caddy_config:/config
+
+networks:
+  public_net:
+    driver: bridge
+  private_net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  media:
+  caddy_data:
+  caddy_config:
