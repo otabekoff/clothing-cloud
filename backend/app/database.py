@@ -66,6 +66,7 @@ def init_schema(seed_fn) -> None:
     try:
         lock_conn.exec_driver_sql(f"SELECT pg_advisory_lock({lock_key})")
         Base.metadata.create_all(bind=engine)
+        _backfill_columns()  # add columns added after the table first existed
         db = SessionLocal()
         try:
             seed_fn(db)
@@ -74,6 +75,51 @@ def init_schema(seed_fn) -> None:
     finally:
         lock_conn.exec_driver_sql(f"SELECT pg_advisory_unlock({lock_key})")
         lock_conn.close()
+
+
+# Columns introduced after a table's initial release. `create_all` creates new
+# tables but never alters existing ones, so a long-lived Postgres volume keeps
+# the old shape. This lightweight, idempotent backfill adds them in place
+# (Postgres `ADD COLUMN IF NOT EXISTS`), preserving existing data — enough for
+# this project without pulling in a full migration tool like Alembic.
+_COLUMN_BACKFILL: dict[str, list[str]] = {
+    "users": [
+        "avatar_url VARCHAR(255)",
+    ],
+    "products": [
+        "description TEXT",
+        "cost_price DOUBLE PRECISION DEFAULT 0",
+        "supplier VARCHAR(120)",
+        "reorder_level INTEGER DEFAULT 100",
+        "image_url VARCHAR(255)",
+        "is_active BOOLEAN DEFAULT TRUE",
+        "created_at TIMESTAMPTZ DEFAULT now()",
+    ],
+    "stock_items": [
+        "bin_location VARCHAR(40)",
+        "reorder_level INTEGER DEFAULT 150",
+        "updated_at TIMESTAMPTZ DEFAULT now()",
+    ],
+    "customers": [
+        "phone VARCHAR(40)",
+        "contact_person VARCHAR(120)",
+        "address TEXT",
+        "status VARCHAR(20) DEFAULT 'active'",
+        "notes TEXT",
+        "logo_url VARCHAR(255)",
+        "created_at TIMESTAMPTZ DEFAULT now()",
+    ],
+    "orders": [
+        "notes TEXT",
+    ],
+}
+
+
+def _backfill_columns() -> None:
+    with engine.begin() as conn:
+        for table, columns in _COLUMN_BACKFILL.items():
+            for col_def in columns:
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col_def}")
 
 
 def wait_for_db(retries: int = 20, delay: float = 1.5) -> None:
