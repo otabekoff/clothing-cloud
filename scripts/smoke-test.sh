@@ -10,10 +10,12 @@ LB="${2:-http://localhost:8080}"        # load balancer
 # (incl. password hashing) and start uvicorn, so poll rather than assume.
 echo "→ waiting for API through LB at $LB/health"
 ready=
-for attempt in $(seq 1 30); do
+# ~120s budget: with multiple replicas the schema-init advisory lock serialises
+# DB create+seed (incl. bcrypt hashing) across them, so cold start can exceed 1m.
+for attempt in $(seq 1 60); do
   if curl -fsS "$LB/health" 2>/dev/null | grep -q '"status":"ok"'; then
     ready=1
-    echo "  backend health OK (after ${attempt}s)"
+    echo "  backend health OK (after $((attempt * 2))s)"
     break
   fi
   sleep 2
