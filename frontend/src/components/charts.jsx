@@ -38,7 +38,18 @@ export function RevenueTrend({ data }) {
         <XAxis dataKey="name" tick={axisStyle} tickLine={false} axisLine={false} />
         <YAxis tick={axisStyle} tickLine={false} axisLine={false} width={48} />
         <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`$${v.toLocaleString()}`, "Revenue"]} />
-        <Area type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} fill="url(#rev)" />
+        <Area
+          type="monotone"
+          dataKey="value"
+          stroke="#4f46e5"
+          strokeWidth={2}
+          fill="url(#rev)"
+          // Show point markers so the chart still reads clearly when there are
+          // only a few data points (a single point would otherwise be invisible
+          // as a line). Active dot enlarges on hover.
+          dot={{ r: 3, fill: "#4f46e5", strokeWidth: 0 }}
+          activeDot={{ r: 5 }}
+        />
       </AreaChart>
     </ResponsiveContainer>
   );
