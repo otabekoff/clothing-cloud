@@ -64,11 +64,14 @@ app.include_router(crm.router)
 app.include_router(wms.router)
 app.include_router(uploads.router)
 
-# Serve uploaded images. The directory is created here so the mount succeeds
-# even on a fresh volume.
+# Serve uploaded images. Create the directory if we can; tolerate failure so
+# the app still imports where the path isn't writable (e.g. CI under pytest).
 _media = Path(settings.media_dir)
-_media.mkdir(parents=True, exist_ok=True)
-app.mount("/media", StaticFiles(directory=str(_media)), name="media")
+try:
+    _media.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass
+app.mount("/media", StaticFiles(directory=str(_media), check_dir=False), name="media")
 
 
 @app.get("/")

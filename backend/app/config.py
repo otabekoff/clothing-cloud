@@ -29,8 +29,10 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
 
     # Directory where uploaded images are stored and served from (/media).
-    # Mounted as a Docker volume in production so files persist across restarts.
-    media_dir: str = "/data/media"
+    # In Docker this is overridden to /data/media (a mounted volume) via the
+    # MEDIA_DIR env var; the default is a repo-relative path so it also works
+    # in CI / local runs where /data isn't writable.
+    media_dir: str = "data/media"
 
     # JWT auth. Set JWT_SECRET via the environment in any real deployment
     # (docker-compose.prod.yml requires it). When unset locally we generate a

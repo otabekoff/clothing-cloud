@@ -45,6 +45,7 @@ services:
       # Fixed secret for LOCAL DEV so every replica validates the same tokens.
       # Production supplies a real JWT_SECRET via the .env file (see prod compose).
       JWT_SECRET: dev-shared-secret-not-for-production
+      MEDIA_DIR: /data/media   # the mounted volume below
     command: >
       sh -c 'export INSTANCE_ID=$(hostname | cut -c1-12);
              exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2'
