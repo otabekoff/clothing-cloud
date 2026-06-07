@@ -270,7 +270,9 @@ def seed_business(db: Session) -> None:
                 status=statuses[i % len(statuses)],
                 total=round(total, 2),
                 items=items,
-                created_at=now - timedelta(days=(len(order_specs) - i) // 2),
+                # One distinct day per order so the revenue-trend chart has a
+                # real line spanning the recent period (newest = today).
+                created_at=now - timedelta(days=(len(order_specs) - 1 - i)),
             )
         )
     db.commit()
