@@ -8,10 +8,12 @@
 #  new replicas automatically (variable proxy_pass + 5s DNS re-resolution), so
 #  the extra capacity starts absorbing load without any manual reload.
 #
-#  Usage:
+#  Usage (local dev):
 #     ./scripts/autoscale.sh
-#  In another terminal, generate load:
-#     locust -f loadtest/locustfile.py --host http://localhost:8080
+#  Usage (on the EC2 instance, against the production stack):
+#     COMPOSE_FILE=docker-compose.prod.yml ./autoscale.sh
+#  In another terminal, generate load against the CPU-burn endpoint:
+#     ab -n 20000 -c 200 "http://localhost:8080/api/load?ms=200"
 # ════════════════════════════════════════════════════════════════
 set -euo pipefail
 
@@ -21,7 +23,9 @@ MAX=6
 SCALE_UP_AT=60       # avg CPU % to add a replica
 SCALE_DOWN_AT=20     # avg CPU % to remove a replica
 INTERVAL=10          # seconds between checks
-COMPOSE="docker compose"
+# Point at an alternate compose file via COMPOSE_FILE (e.g. the prod stack on
+# EC2). Defaults to the dev compose in the current directory.
+COMPOSE="docker compose${COMPOSE_FILE:+ -f $COMPOSE_FILE}"
 
 current_replicas() {
   $COMPOSE ps --status running "$SERVICE" 2>/dev/null | grep -c "$SERVICE" || echo 0

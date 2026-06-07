@@ -124,7 +124,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.prod.yml,scripts/smoke-test.sh,caddy/Caddyfile"
+          source: "docker-compose.prod.yml,scripts/smoke-test.sh,scripts/autoscale.sh,caddy/Caddyfile"
           target: "~/nimbus"
 
       - name: Deploy on EC2
