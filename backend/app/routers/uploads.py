@@ -16,7 +16,6 @@ from ..security import require_role
 settings = get_settings()
 
 MEDIA_DIR = Path(settings.media_dir)
-MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED = {
     "image/png": ".png",
@@ -48,6 +47,10 @@ async def upload_image(file: UploadFile = File(...)):
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="File too large (max 4 MB).")
 
+    # Create the directory lazily on first upload (not at import time, so the
+    # app still imports cleanly in environments where the path isn't writable,
+    # e.g. CI running pytest as a non-root user).
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     name = f"{secrets.token_hex(16)}{ext}"
     (MEDIA_DIR / name).write_bytes(data)
     # Served by the StaticFiles mount in main.py at /media.
