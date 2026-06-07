@@ -26,6 +26,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      reset_db:
+        description: "DANGER: wipe the prod database volume and re-seed demo data"
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -72,7 +78,9 @@ jobs:
   build-and-push:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || github.event_name == 'workflow_dispatch'
     env:
       ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
     steps:
@@ -104,7 +112,9 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v5
 
@@ -123,10 +133,11 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: AWS_REGION,AWS_ACCOUNT_ID
+          envs: AWS_REGION,AWS_ACCOUNT_ID,RESET_DB
           script: |
             export AWS_REGION=${{ secrets.AWS_REGION }}
             export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
+            export RESET_DB=${{ github.event.inputs.reset_db || 'false' }}
             export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
             cd ~/nimbus
             # Ensure required env exists. JWT_SECRET is mandatory for the app;
@@ -146,8 +157,15 @@ jobs:
             echo "ECR_REGISTRY=$ECR_REGISTRY" > .deploy.env
             ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml pull
             # Stop the old stack first so published ports (80/8080) are released
-            # cleanly. The pgdata volume is named, so DB data persists.
-            ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml down --remove-orphans || true
+            # cleanly. Normally the pgdata volume is named, so DB data persists.
+            # A manual workflow_dispatch with reset_db=true also wipes volumes
+            # (-v) to reset the demo database and re-seed fresh data.
+            if [ "$RESET_DB" = "true" ]; then
+              echo "RESET_DB=true → wiping volumes (DB + media will be re-seeded)"
+              ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml down -v --remove-orphans || true
+            else
+              ECR_REGISTRY=$ECR_REGISTRY docker compose -f docker-compose.prod.yml down --remove-orphans || true
+            fi
             # Free ports 80/443/8080 no matter what holds them. `compose down`
             # only covers this project; a container from an old project name — or
             # a host service (httpd/nginx) installed directly — can still hold a
