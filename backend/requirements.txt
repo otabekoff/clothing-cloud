@@ -7,7 +7,7 @@ pydantic-settings==2.7.1
 python-dotenv==1.0.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-bcrypt==4.0.1  # passlib 1.7.4 misreads bcrypt 4.1+ version; 4.0.1 is clean
+bcrypt==5.0.0  # passlib 1.7.4 misreads bcrypt 4.1+ version; 4.0.1 is clean
 python-multipart==0.0.20
 email-validator==2.2.0
 httpx==0.28.1
